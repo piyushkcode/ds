@@ -1,0 +1,143 @@
+Step-by-step Implementation:
+a. Create Hive Tables
+sql
+Copy
+Edit
+-- Customer Info Table
+CREATE TABLE customer_info (
+  cust_id STRING,
+  cust_name STRING,
+  order_id STRING
+)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+STORED AS TEXTFILE;
+
+-- Order Info Table
+CREATE TABLE order_info (
+  order_id STRING,
+  item_id STRING,
+  quantity INT
+)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+STORED AS TEXTFILE;
+
+-- Item Info Table
+CREATE TABLE item_info (
+  item_id STRING,
+  item_name STRING,
+  item_price DOUBLE
+)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+STORED AS TEXTFILE;
+b. Load Data from Local Storage
+Sample files: customer.csv, order.csv, item.csv in /home/hadoop/data/
+
+sql
+Copy
+Edit
+LOAD DATA LOCAL INPATH '/home/hadoop/data/customer.csv' INTO TABLE customer_info;
+LOAD DATA LOCAL INPATH '/home/hadoop/data/order.csv' INTO TABLE order_info;
+LOAD DATA LOCAL INPATH '/home/hadoop/data/item.csv' INTO TABLE item_info;
+c. Perform Join of Tables
+sql
+Copy
+Edit
+-- Join all 3 tables to get full order info with customer and item details
+SELECT
+  ci.cust_id,
+  ci.cust_name,
+  oi.order_id,
+  ii.item_name,
+  ii.item_price,
+  oi.quantity,
+  (ii.item_price * oi.quantity) AS total_price
+FROM customer_info ci
+JOIN order_info oi ON ci.order_id = oi.order_id
+JOIN item_info ii ON oi.item_id = ii.item_id;
+d. Create Index on Customer Info
+sql
+Copy
+Edit
+CREATE INDEX cust_index
+ON TABLE customer_info (cust_id)
+AS 'COMPACT'
+WITH DEFERRED REBUILD;
+
+-- Rebuild the index
+ALTER INDEX cust_index ON customer_info REBUILD;
+e. Find Total and Average Sales
+sql
+Copy
+Edit
+-- Based on the joins
+SELECT
+  SUM(ii.item_price * oi.quantity) AS total_sales,
+  AVG(ii.item_price * oi.quantity) AS avg_sales
+FROM order_info oi
+JOIN item_info ii ON oi.item_id = ii.item_id;
+f. Order Details with Maximum Cost
+sql
+Copy
+Edit
+SELECT
+  oi.order_id,
+  MAX(ii.item_price * oi.quantity) AS max_cost
+FROM order_info oi
+JOIN item_info ii ON oi.item_id = ii.item_id
+GROUP BY oi.order_id
+ORDER BY max_cost DESC
+LIMIT 1;
+g. External Hive Table Connected to HBase
+Step 1: Create HBase Table
+bash
+Copy
+Edit
+# Open HBase shell
+hbase shell
+
+# Create HBase table
+create 'customer_info_hbase', 'cf'
+Step 2: Create External Hive Table
+sql
+Copy
+Edit
+CREATE EXTERNAL TABLE customer_info_hbase (
+  cust_id STRING,
+  cust_name STRING,
+  order_id STRING
+)
+STORED BY 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
+WITH SERDEPROPERTIES ("hbase.columns.mapping" = ":key,cf:cust_name,cf:order_id")
+TBLPROPERTIES ("hbase.table.name" = "customer_info_hbase");
+h. Display Records from HBase Table
+sql
+Copy
+Edit
+SELECT * FROM customer_info_hbase;
+Sample CSV Data
+customer.csv
+
+Copy
+Edit
+C001,John,ORD1
+C002,Alice,ORD2
+C003,Steve,ORD3
+order.csv
+
+Copy
+Edit
+ORD1,ITM1,2
+ORD2,ITM2,1
+ORD3,ITM3,4
+item.csv
+
+arduino
+Copy
+Edit
+ITM1,Keyboard,500.00
+ITM2,Mouse,300.00
+ITM3,Monitor,7000.00
+Would you like me to generate and upload these CSV files for you?
