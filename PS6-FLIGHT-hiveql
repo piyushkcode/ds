@@ -1,0 +1,113 @@
+✅ 1. Start HBase and Hive Services
+bash
+Copy
+Edit
+start-hbase.sh
+hive
+✅ 2. Create HBase Table (Flight Information)
+Open HBase shell:
+bash
+Copy
+Edit
+hbase shell
+Create the HBase table:
+hbase
+Copy
+Edit
+create 'flight_info', 'flight_details', 'schedule', 'delay'
+Verify:
+hbase
+Copy
+Edit
+list
+✅ 3. Insert Data into HBase Table
+hbase
+Copy
+Edit
+put 'flight_info', 'FL123_20240507', 'flight_details:number', 'FL123'
+put 'flight_info', 'FL123_20240507', 'flight_details:airline', 'IndiGo'
+put 'flight_info', 'FL123_20240507', 'schedule:departure', '10:00'
+put 'flight_info', 'FL123_20240507', 'schedule:arrival', '12:00'
+put 'flight_info', 'FL123_20240507', 'delay:departure_delay', '15'
+put 'flight_info', 'FL123_20240507', 'delay:arrival_delay', '5'
+
+put 'flight_info', 'FL456_20240507', 'flight_details:number', 'FL456'
+put 'flight_info', 'FL456_20240507', 'flight_details:airline', 'AirIndia'
+put 'flight_info', 'FL456_20240507', 'schedule:departure', '14:00'
+put 'flight_info', 'FL456_20240507', 'schedule:arrival', '16:30'
+put 'flight_info', 'FL456_20240507', 'delay:departure_delay', '10'
+put 'flight_info', 'FL456_20240507', 'delay:arrival_delay', '20'
+✅ 4. Create Hive External Table for HBase Table
+Open Hive CLI:
+bash
+Copy
+Edit
+hive
+Enable HBase support:
+sql
+Copy
+Edit
+ADD JAR /usr/lib/hive/lib/hive-hbase-handler.jar;
+ADD JAR /usr/lib/hbase/hbase-client.jar;
+(Paths may vary based on your system.)
+
+Create Hive external table:
+sql
+Copy
+Edit
+CREATE EXTERNAL TABLE flight_info_hive(
+  flight_number STRING,
+  airline STRING,
+  departure STRING,
+  arrival STRING,
+  departure_delay INT,
+  arrival_delay INT
+)
+STORED BY 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
+WITH SERDEPROPERTIES (
+  "hbase.columns.mapping" = "flight_details:number,flight_details:airline,schedule:departure,schedule:arrival,delay:departure_delay,delay:arrival_delay"
+)
+TBLPROPERTIES("hbase.table.name" = "flight_info");
+Test:
+sql
+Copy
+Edit
+SELECT * FROM flight_info_hive;
+✅ 5. Run HiveQL Queries
+a. Total Departure Delay:
+sql
+Copy
+Edit
+SELECT SUM(departure_delay) AS total_departure_delay FROM flight_info_hive;
+b. Average Departure Delay:
+sql
+Copy
+Edit
+SELECT AVG(departure_delay) AS average_departure_delay FROM flight_info_hive;
+✅ 6. Drop/Alter Database Tables (HBase + Hive)
+Drop Hive Table:
+sql
+Copy
+Edit
+DROP TABLE flight_info_hive;
+Drop HBase Table:
+bash
+Copy
+Edit
+hbase shell
+disable 'flight_info'
+drop 'flight_info'
+Alter HBase Table (e.g., add a new column family):
+bash
+Copy
+Edit
+alter 'flight_info', NAME => 'status'
+✅ 7. Create Index on Hive Table (Optional)
+Hive does not support indexing well in modern versions; use partitioning or bucketing for optimization instead. If still needed:
+
+sql
+Copy
+Edit
+CREATE INDEX flight_delay_index ON TABLE flight_info_hive (departure_delay)
+AS 'COMPACT' WITH DEFERRED REBUILD;
+ALTER INDEX flight_delay_index ON flight_info_hive REBUILD;
