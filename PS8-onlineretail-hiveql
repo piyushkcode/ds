@@ -1,0 +1,170 @@
+Here's a complete step-by-step **application using HBase and HiveQL for the OnlineRetail Dataset**, including everything from table creation and analysis to HBase integration.
+
+---
+
+## ✅ OnlineRetail Application using Hive & HBase
+
+---
+
+### 🔹 i. Create and Load Table in Hive
+
+#### 1. **Create Hive Table for OnlineRetail Data**
+
+Assuming columns:
+`InvoiceNo`, `StockCode`, `Description`, `Quantity`, `InvoiceDate`, `UnitPrice`, `CustomerID`, `Country`
+
+```sql
+CREATE TABLE online_retail (
+  invoice_no STRING,
+  stock_code STRING,
+  description STRING,
+  quantity INT,
+  invoice_date STRING,
+  unit_price DOUBLE,
+  customer_id STRING,
+  country STRING
+)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+STORED AS TEXTFILE;
+```
+
+#### 2. **Upload CSV to HDFS**
+
+```bash
+hdfs dfs -put OnlineRetail.csv /user/hive/warehouse/
+```
+
+#### 3. **Load Data in Hive**
+
+```sql
+LOAD DATA INPATH '/user/hive/warehouse/OnlineRetail.csv' INTO TABLE online_retail;
+```
+
+---
+
+### 🔹 j. Create Index on Online Retail Table in Hive
+
+```sql
+CREATE INDEX customer_idx ON TABLE online_retail (customer_id)
+AS 'COMPACT' WITH DEFERRED REBUILD;
+
+ALTER INDEX customer_idx ON online_retail REBUILD;
+```
+
+> ⚠️ *Note: Hive indexes are deprecated. Partitioning is preferred in production setups.*
+
+---
+
+### 🔹 k. Find Total and Average Sales
+
+```sql
+SELECT 
+  SUM(quantity * unit_price) AS total_sales,
+  AVG(quantity * unit_price) AS avg_sales
+FROM online_retail;
+```
+
+---
+
+### 🔹 l. Find Order Details with Maximum Cost
+
+```sql
+SELECT invoice_no, SUM(quantity * unit_price) AS order_total
+FROM online_retail
+GROUP BY invoice_no
+ORDER BY order_total DESC
+LIMIT 1;
+```
+
+---
+
+### 🔹 m. Find Customer with Maximum Order Total
+
+```sql
+SELECT customer_id, SUM(quantity * unit_price) AS total_spent
+FROM online_retail
+GROUP BY customer_id
+ORDER BY total_spent DESC
+LIMIT 1;
+```
+
+---
+
+### 🔹 n. Country with Maximum and Minimum Sale
+
+#### Max Sale Country
+
+```sql
+SELECT country, SUM(quantity * unit_price) AS total_sales
+FROM online_retail
+GROUP BY country
+ORDER BY total_sales DESC
+LIMIT 1;
+```
+
+#### Min Sale Country
+
+```sql
+SELECT country, SUM(quantity * unit_price) AS total_sales
+FROM online_retail
+GROUP BY country
+HAVING total_sales > 0
+ORDER BY total_sales ASC
+LIMIT 1;
+```
+
+---
+
+### 🔹 o. Create External Hive Table to Connect to HBase
+
+#### 1. **Create HBase Table First**
+
+```hbase
+create 'hbase_online_retail', 'cf'
+```
+
+#### 2. **Create External Hive Table for HBase**
+
+```sql
+CREATE EXTERNAL TABLE hbase_online_retail(
+  rowkey STRING,
+  invoice_no STRING,
+  stock_code STRING,
+  description STRING,
+  quantity INT,
+  unit_price DOUBLE,
+  customer_id STRING,
+  country STRING
+)
+STORED BY 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
+WITH SERDEPROPERTIES (
+  "hbase.columns.mapping" = ":key,cf:invoice_no,cf:stock_code,cf:description,cf:quantity,cf:unit_price,cf:customer_id,cf:country"
+)
+TBLPROPERTIES("hbase.table.name" = "hbase_online_retail");
+```
+
+---
+
+### 🔹 p. Display Records from HBase Table via Hive
+
+```sql
+SELECT * FROM hbase_online_retail LIMIT 10;
+```
+
+---
+-- From HBase shell:
+
+scan 'onlineretail_hb'
+
+Optional: Insert test data to HBase using shell
+
+put 'onlineretail_hb', '1', 'cf:invoiceNo', '1001'
+put 'onlineretail_hb', '1', 'cf:stockCode', 'A1'
+put 'onlineretail_hb', '1', 'cf:description', 'Notebook'
+put 'onlineretail_hb', '1', 'cf:quantity', '5'
+put 'onlineretail_hb', '1', 'cf:invoiceDate', '2023-10-10'
+put 'onlineretail_hb', '1', 'cf:unitPrice', '3.5'
+put 'onlineretail_hb', '1', 'cf:customerID', 'C123'
+put 'onlineretail_hb', '1', 'cf:country', 'UK'
+Would you like me to generate a sample CSV or the `OnlineRetail.csv` structure for testing locally?
