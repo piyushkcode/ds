@@ -1,0 +1,24 @@
+Steps to Run MapReduce Java Program in Cloudera:
+
+1. Create a Java project named as `name1`.
+2. Create a package named as `name1`.
+3. Create a Java file (class) as `name1`.
+4. Code in Java file.
+5. Open Desktop and create `input.txt`.
+6. Click on project
+   - Click on Build Path → Add External Archives
+   - Add the following:
+     - /usr/lib/hadoop/hadoop-common.jar
+     - /usr/lib/hadoop-mapreduce/hadoop-core.jar
+7. Make .jar (JAR file) by right-clicking on Java file.
+8. Store the JAR file in /home/cloudera/some_name.
+9. Run the command:
+   hadoop fs -put input.txt input.txt
+10. Run the MapReduce job:
+    hadoop jar jar-file-name.jar package.class input.txt dir1
+11. View output:
+    hadoop fs -cat dir1/part-r-00000
+
+
+
+mount -t vboxsf folder folder
