@@ -113,6 +113,12 @@ STORED BY 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
 WITH SERDEPROPERTIES ("hbase.columns.mapping" = ":key,cf:cust_name,cf:order_id")
 TBLPROPERTIES ("hbase.table.name" = "customer_info_hbase");
 h. Display Records from HBase Table
+(in hiveql)
+INSERT INTO TABLE customer_info_hbase
+SELECT CAST(cust_id AS STRING), cust_name, CAST(order_id AS STRING)
+FROM customer_info;
+
+
 sql
 Copy
 Edit
