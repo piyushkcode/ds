@@ -1,0 +1,151 @@
+package logtime;
+
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.WritableComparable;
+import org.apache.hadoop.io.WritableComparator;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+public class logtime {
+
+    // ==========================
+    // First Job: Calculate Total Duration
+    // ==========================
+    public static class LogMapper extends Mapper<LongWritable, Text, Text, IntWritable> {
+
+        private final static SimpleDateFormat format = new SimpleDateFormat("M/d/yyyy H:mm");
+        private Text user = new Text();
+
+        public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+            try {
+                String[] parts = value.toString().split(",");
+
+                if (parts.length < 8) return;
+
+                String ip = parts[1].trim();
+                String loginStr = parts[5].trim();
+                String logoutStr = parts[7].trim();
+
+                Date login = format.parse(loginStr);
+                Date logout = format.parse(logoutStr);
+
+                long duration = (logout.getTime() - login.getTime()) / (1000 * 60); // minutes
+
+                if (duration >= 0) {
+                    user.set(ip);
+                    context.write(user, new IntWritable((int) duration));
+                }
+            } catch (Exception e) {
+                System.err.println("Skipping line: " + value.toString());
+            }
+        }
+    }
+
+    public static class LogReducer extends Reducer<Text, IntWritable, Text, IntWritable> {
+
+        public void reduce(Text key, Iterable<IntWritable> values, Context context)
+                throws IOException, InterruptedException {
+
+            int totalTime = 0;
+            for (IntWritable val : values) {
+                totalTime += val.get();
+            }
+
+            context.write(key, new IntWritable(totalTime));
+        }
+    }
+
+    // ==========================
+    // Second Job: Sort and Extract Top 10
+    // ==========================
+    public static class SortMapper extends Mapper<LongWritable, Text, IntWritable, Text> {
+        public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+            String[] parts = value.toString().split("\\t"); // Tab-separated from first job
+            if (parts.length == 2) {
+                String ip = parts[0];
+                int time = Integer.parseInt(parts[1]);
+                context.write(new IntWritable(time), new Text(ip));
+            }
+        }
+    }
+
+    // Comparator for sorting in descending order
+    public static class DescendingIntComparator extends WritableComparator {
+        protected DescendingIntComparator() {
+            super(IntWritable.class, true);
+        }
+
+        @Override
+        public int compare(WritableComparable a, WritableComparable b) {
+            return -1 * a.compareTo(b);
+        }
+    }
+
+    public static class TopReducer extends Reducer<IntWritable, Text, Text, IntWritable> {
+        private int count = 0;
+
+        public void reduce(IntWritable key, Iterable<Text> values, Context context)
+                throws IOException, InterruptedException {
+            for (Text val : values) {
+                if (count++ < 10) {
+                    context.write(val, key);
+                } else {
+                    return;
+                }
+            }
+        }
+    }
+
+    // ==========================
+    // Main Method: Run both jobs
+    // ==========================
+    public static void main(String[] args) throws Exception {
+        if (args.length != 3) {
+            System.err.println("Usage: logtime <input path> <temp output path> <final output path>");
+            System.exit(-1);
+        }
+
+        Configuration conf = new Configuration();
+
+        // First Job: Calculate Total Time per IP
+        Job job1 = Job.getInstance(conf, "Log Duration Calculator");
+        job1.setJarByClass(logtime.class);
+        job1.setMapperClass(LogMapper.class);
+        job1.setReducerClass(LogReducer.class);
+        job1.setOutputKeyClass(Text.class);
+        job1.setOutputValueClass(IntWritable.class);
+        FileInputFormat.addInputPath(job1, new Path(args[0]));
+        FileOutputFormat.setOutputPath(job1, new Path(args[1]));
+
+        boolean success = job1.waitForCompletion(true);
+        if (!success) {
+            System.exit(1);
+        }
+
+        // Second Job: Sort and Output Top 10
+        Job job2 = Job.getInstance(conf, "Top 10 Users");
+        job2.setJarByClass(logtime.class);
+        job2.setMapperClass(SortMapper.class);
+        job2.setReducerClass(TopReducer.class);
+        job2.setSortComparatorClass(DescendingIntComparator.class);
+        job2.setMapOutputKeyClass(IntWritable.class);
+        job2.setMapOutputValueClass(Text.class);
+        job2.setOutputKeyClass(Text.class);
+        job2.setOutputValueClass(IntWritable.class);
+        FileInputFormat.addInputPath(job2, new Path(args[1]));
+        FileOutputFormat.setOutputPath(job2, new Path(args[2]));
+
+        System.exit(job2.waitForCompletion(true) ? 0 : 1);
+    }
+}
