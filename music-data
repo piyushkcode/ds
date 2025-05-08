@@ -1,0 +1,10 @@
+user01,trackA,listen,radio
+user02,trackB,skip,app
+user03,trackA,listen,app
+user01,trackC,share,app
+user04,trackA,listen,radio
+user05,trackB,skip,radio
+user01,trackA,share,app
+user03,trackC,listen,app
+user06,trackC,share,radio
+user02,trackA,listen,radio
