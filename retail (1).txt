@@ -1,0 +1,126 @@
+-- Create Hive table
+CREATE TABLE OnlineRetail (
+  InvoiceNo STRING,
+  StockCode STRING,
+  Description STRING,
+  Quantity INT,
+  InvoiceDate STRING,
+  UnitPrice DOUBLE,
+  CustomerID STRING,
+  Country STRING
+)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+STORED AS TEXTFILE;
+
+-- Load sample data
+LOAD DATA LOCAL INPATH '/path/to/sample_online_retail.csv' INTO TABLE OnlineRetail;
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------------
+
+CREATE INDEX idx_customer_id
+ON TABLE OnlineRetail (CustomerID)
+AS 'COMPACT'
+WITH DEFERRED REBUILD;
+
+
+ALTER INDEX idx_customer_id ON OnlineRetail REBUILD;
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------
+
+
+-- Total and Average Sales
+SELECT 
+  SUM(Quantity * UnitPrice) AS Total_Sales,
+  AVG(Quantity * UnitPrice) AS Avg_Sales
+FROM OnlineRetail;
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------
+
+SELECT 
+  InvoiceNo,
+  SUM(Quantity * UnitPrice) AS OrderTotal
+FROM OnlineRetail
+GROUP BY InvoiceNo
+ORDER BY OrderTotal DESC
+LIMIT 1;
+
+
+-------------------------------------------------------------------------------------------------------------------------------------------
+
+SELECT 
+  CustomerID,
+  SUM(Quantity * UnitPrice) AS TotalSpent
+FROM OnlineRetail
+WHERE CustomerID IS NOT NULL
+GROUP BY CustomerID
+ORDER BY TotalSpent DESC
+LIMIT 1;
+
+
+-----------------------------------------------------------------------------------------------------------------------------------
+
+-- Country with Maximum Sale
+SELECT 
+  Country,
+  SUM(Quantity * UnitPrice) AS CountryTotal
+FROM OnlineRetail
+GROUP BY Country
+ORDER BY CountryTotal DESC
+LIMIT 1;
+
+-- Country with Minimum Sale (excluding 0)
+SELECT 
+  Country,
+  SUM(Quantity * UnitPrice) AS CountryTotal
+FROM OnlineRetail
+GROUP BY Country
+HAVING CountryTotal > 0
+ORDER BY CountryTotal ASC
+LIMIT 1;
+
+
+--------------------------------------------------------------------------------------------------------------------------
+
+CREATE EXTERNAL TABLE OnlineRetailHBase (
+  rowkey STRING,
+  invoiceNo STRING,
+  stockCode STRING,
+  description STRING,
+  quantity INT,
+  invoiceDate STRING,
+  unitPrice DOUBLE,
+  customerID STRING,
+  country STRING
+)
+STORED BY 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
+WITH SERDEPROPERTIES (
+  "hbase.columns.mapping" = ":key,cf:invoiceNo,cf:stockCode,cf:description,cf:quantity,cf:invoiceDate,cf:unitPrice,cf:customerID,cf:country"
+)
+TBLPROPERTIES (
+  "hbase.table.name" = "onlineretail"
+);
+
+
+
+-------------------------------------------------------------------------------------------------------------------------
+
+hbase shell
+create 'onlineretail', 'cf'
+
+
+-----------------------------------------------------------------------------------------------------------------------
+
+put 'onlineretail', '1', 'cf:invoiceNo', '1001'
+put 'onlineretail', '1', 'cf:stockCode', 'A123'
+put 'onlineretail', '1', 'cf:description', 'Pen'
+put 'onlineretail', '1', 'cf:quantity', '10'
+put 'onlineretail', '1', 'cf:invoiceDate', '2023-05-01'
+put 'onlineretail', '1', 'cf:unitPrice', '1.5'
+put 'onlineretail', '1', 'cf:customerID', 'C001'
+put 'onlineretail', '1', 'cf:country', 'UK'
+
+SELECT * FROM OnlineRetailHBase;

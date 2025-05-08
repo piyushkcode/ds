@@ -1,0 +1,116 @@
+-- Customer Info Table
+CREATE TABLE customer_info (
+  cust_id STRING,
+  cust_name STRING,
+  order_id STRING
+)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+STORED AS TEXTFILE;
+
+-- Order Info Table
+CREATE TABLE order_info (
+  order_id STRING,
+  item_id STRING,
+  quantity INT
+)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+STORED AS TEXTFILE;
+
+-- Item Info Table
+CREATE TABLE item_info (
+  item_id STRING,
+  item_name STRING,
+  item_price DOUBLE
+)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+STORED AS TEXTFILE;
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+LOAD DATA LOCAL INPATH '/home/hadoop/data/customer.csv' INTO TABLE customer_info;
+LOAD DATA LOCAL INPATH '/home/hadoop/data/order.csv' INTO TABLE order_info;
+LOAD DATA LOCAL INPATH '/home/hadoop/data/item.csv' INTO TABLE item_info;
+
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+-- Join all 3 tables to get full order info with customer and item details
+SELECT
+  ci.cust_id,
+  ci.cust_name,
+  oi.order_id,
+  ii.item_name,
+  ii.item_price,
+  oi.quantity,
+  (ii.item_price * oi.quantity) AS total_price
+FROM customer_info ci
+JOIN order_info oi ON ci.order_id = oi.order_id
+JOIN item_info ii ON oi.item_id = ii.item_id;
+
+
+
+--------------------------------------------------------------------------------------------------------------------------------------
+CREATE INDEX cust_index
+ON TABLE customer_info (cust_id)
+AS 'COMPACT'
+WITH DEFERRED REBUILD;
+
+-- Rebuild the index
+ALTER INDEX cust_index ON customer_info REBUILD;
+
+-----------------------------------------------------------------------------------------------------------------------------------------
+-- Based on the joins
+SELECT
+  SUM(ii.item_price * oi.quantity) AS total_sales,
+  AVG(ii.item_price * oi.quantity) AS avg_sales
+FROM order_info oi
+JOIN item_info ii ON oi.item_id = ii.item_id;
+
+
+-------------------------------------------------------------------------------------------------------------------------------------------
+
+SELECT
+  oi.order_id,
+  MAX(ii.item_price * oi.quantity) AS max_cost
+FROM order_info oi
+JOIN item_info ii ON oi.item_id = ii.item_id
+GROUP BY oi.order_id
+ORDER BY max_cost DESC
+LIMIT 1;
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Open HBase shell
+hbase shell
+
+# Create HBase table
+create 'customer_info_hbase', 'cf'
+----------------------------------------------------------------------------------------------------------------------------------------------------
+put 'customer_info_hbase', 'C001', 'cf:name', 'John'
+put 'customer_info_hbase', 'C001', 'cf:order_id', 'ORD123'
+
+
+
+------------------------------------------------------------------------------------------------------------------------------------------
+
+CREATE EXTERNAL TABLE customer_info_hbase (
+  cust_id STRING,
+  cust_name STRING,
+  order_id STRING
+)
+STORED BY 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
+WITH SERDEPROPERTIES ("hbase.columns.mapping" = ":key,cf:cust_name,cf:order_id")
+TBLPROPERTIES ("hbase.table.name" = "customer_info_hbase");
+
+
+------------------------------------------------------------------------------------------------------------------------------------------
+
+SELECT * FROM customer_info_hbase;

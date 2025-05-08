@@ -1,0 +1,63 @@
+hbase shell
+
+create 'flight_info', 'info', 'schedule', 'delay'
+
+put 'flight_info', 'row1', 'info:flight_id', 'AI101'
+put 'flight_info', 'row1', 'info:airline', 'Air India'
+put 'flight_info', 'row1', 'schedule:departure_time', '10:00'
+put 'flight_info', 'row1', 'schedule:arrival_time', '12:00'
+put 'flight_info', 'row1', 'delay:departure_delay', '15'
+put 'flight_info', 'row1', 'delay:arrival_delay', '10'
+
+put 'flight_info', 'row2', 'info:flight_id', '6E202'
+put 'flight_info', 'row2', 'info:airline', 'Indigo'
+put 'flight_info', 'row2', 'schedule:departure_time', '14:00'
+put 'flight_info', 'row2', 'schedule:arrival_time', '16:30'
+put 'flight_info', 'row2', 'delay:departure_delay', '5'
+put 'flight_info', 'row2', 'delay:arrival_delay', '0'
+
+# Create (already done above)
+create 'flight_info', 'info', 'schedule', 'delay'
+
+# Alter – add a new column family
+alter 'flight_info', 'status'
+
+# Drop
+disable 'flight_info'
+drop 'flight_info'
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------
+
+CREATE EXTERNAL TABLE flight_info_hive (
+  row_key STRING,
+  flight_id STRING,
+  airline STRING,
+  departure_time STRING,
+  arrival_time STRING,
+  departure_delay INT,
+  arrival_delay INT
+)
+STORED BY 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
+WITH SERDEPROPERTIES (
+  "hbase.columns.mapping" = ":key,info:flight_id,info:airline,schedule:departure_time,schedule:arrival_time,delay:departure_delay,delay:arrival_delay"
+)
+TBLPROPERTIES("hbase.table.name" = "flight_info");
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+SELECT SUM(departure_delay) AS total_departure_delay FROM flight_info_hive;
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+SELECT AVG(departure_delay) AS avg_departure_delay FROM flight_info_hive;
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+CREATE INDEX idx_flight_id
+ON TABLE flight_info_hive (flight_id)
+AS 'COMPACT'
+WITH DEFERRED REBUILD;
+
+ALTER INDEX idx_flight_id ON flight_info_hive REBUILD;
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------
